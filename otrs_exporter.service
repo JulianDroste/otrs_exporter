@@ -1,0 +1,10 @@
+[Unit]
+Description=OTRS Prometheus Exporter
+After=network-online.target
+
+[Service]
+Restart=on-failure
+User=otrs
+Group=otrs
+EnvironmentFile=/opt/scripts/otrs_exporter/.env
+ExecStart=/opt/scripts/otrs_exporter/venv/bin/python /opt/scripts/otrs_exporter/main.py
