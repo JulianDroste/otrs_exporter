@@ -18,9 +18,10 @@ def _connect_db() -> mysql.connector.connection:
             password=settings.DB_PW
         )
     else:
-        LOG.warning("No password for database provided in OTRS_EXP_DB_PW! Skipping DB connection!")
+        LOG.error("No password for database provided in OTRS_EXP_DB_PW! Skipping DB connection!")
 
 
+# noinspection PyPackageRequirements
 db: mysql.connector.connection = _connect_db()
 
 
@@ -65,8 +66,8 @@ def _action_where(action: str, table_name: str, **kwargs) -> List[Dict[str, Any]
         :return: A `list` containing `dict`s, each mapping column names to values of a data row. The list might be empty.
         """
     cursor = kwargs.pop("cursor")
-    if not cursor or not isinstance(cursor, mysql.connector.cursor):
-        print("No cursor provided!")
+    if not cursor or not isinstance(cursor, MySQLCursor):
+        LOG.error("No cursor provided!")
         raise ValueError("No valid PostgresCursor provided by @auto_cursor or user!")
     if action is None or action.upper() not in ["SELECT", "DELETE"]:
         raise ValueError(f"Invalid action requested! Must be SELECT or DELETE! Got {action}.")
@@ -77,7 +78,7 @@ def _action_where(action: str, table_name: str, **kwargs) -> List[Dict[str, Any]
 
     try:
         cursor.execute(sql_statement, tuple(kwargs.values()))
-    except mysql.connector.errors.Error as e:
+    except mysql.connector.errors.Error:
         return []
     search_results = None
     try:
@@ -122,8 +123,8 @@ def delete_where(table_name: str, **kwargs) -> List[Dict[str, Any]]:
 @auto_cursor
 def get_db_columns(table_name: str, **kwargs):
     cursor = kwargs.pop("cursor")
-    if not cursor or not isinstance(cursor, mysql.connector.cursor):
-        print("No cursor provided!")
-        raise ValueError("No valid PostgresCursor provided by @auto_cursor or user!")
+    if not cursor or not isinstance(cursor, MySQLCursor):
+        LOG.error("No cursor provided!")
+        raise ValueError("No valid MySQLCursor provided by @auto_cursor or user!")
     cursor.execute(f"SELECT column_name FROM INFORMATION_SCHEMA. COLUMNS WHERE TABLE_NAME = '{table_name}';")
     return [column_tuple[0] for column_tuple in cursor.fetchall()]
