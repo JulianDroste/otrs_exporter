@@ -7,8 +7,9 @@ import subprocess
 import re
 import settings
 
-log: Pygtail = Pygtail(settings.LOGWATCH, offset_file="/tmp/logfile.offset")
+log: Pygtail = Pygtail(settings.LOGWATCH, offset_file="/dev/shm/logfile.offset")
 LOG = logging.getLogger(__name__)
+
 
 def call_otrs_cli(cli_endpoint: str) -> str:
     return subprocess.run(["/opt/otrs/bin/otrs.Console.pl", cli_endpoint],
@@ -128,8 +129,10 @@ def get_elastic_index_states() -> Dict:
                                        stdout=subprocess.PIPE).stdout.decode("utf-8")
     indices: List[str] = re.compile(r"^\s+\|\s+(\w+)\s+\|\s+(\d+)\s+\|\s+(\d+)\s+\|.*$", re.MULTILINE).findall(
         otrs_cli_out)
-    indices_dict = {re.sub(r'(?<!^)(?=[A-Z])', '_', index[0]).lower(): {"indexed": index[2], "avail": index[1]} for
-                    index in indices}
+    indices_indexed = {re.sub(r'(?<!^)(?=[A-Z])', '_', index[0]).lower() + "_indexed": index[2] for index in indices}
+    indices_avail = {re.sub(r'(?<!^)(?=[A-Z])', '_', index[0]).lower() + "_avail": index[1] for index in indices}
+    indices_dict = indices_indexed
+    indices_dict.update(indices_avail)
     return indices_dict
 
 
@@ -146,21 +149,21 @@ def get_elastic_overall_nodes_status():
     states: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+\W\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     unique_status = set(states)
     if "On-line" not in unique_status:
-        return {"red": None}
+        return {"Red": None}
     # If one node goes bad, the overall node state should turn bad
     elif len(unique_status) > 1:
-        return {"yellow": False}
+        return {"Yellow": False}
     else:
-        return {"green": True}
+        return {"Green": True}
 
 
 def get_elastic_overall_cluster_status():
     otrs_cli_out: str = call_otrs_cli("Maint::DocumentSearch::Check")
     matching: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     state_to_bool = {
-        "red": None,
-        "yellow": False,
-        "green": True
+        "Red": None,
+        "Yellow": False,
+        "Green": True
     }
     result = {}
     for match in matching:
@@ -180,7 +183,7 @@ def get_additional_db_stats():
     otrs_cli_out: str = call_otrs_cli("Maint::Database::Check")
     matching: List[str] = re.compile(r"^(\w[\w\s]+)\: (.*)$", re.MULTILINE).findall(otrs_cli_out)
     return {match[0].lower().replace(" ", "_"):
-                match[1].strip(" ").strip("(").strip(")").replace(" (", " - ")
+            match[1].strip(" ").strip("(").strip(")").replace(" (", " - ")
             for match in matching}
 
 
