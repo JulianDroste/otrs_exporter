@@ -33,82 +33,87 @@ class OtrsConnector:
         yield self._metric_elastic_index_states()
 
     def _metric_mail_error_count(self) -> GaugeMetricFamily:
-        metric = GaugeMetricFamily("otrs_mail_error", "Determine via OTRS logs whether there are issues with E-Mail")
+        metric = GaugeMetricFamily("otrs_mail_error",
+                                   "Determine via OTRS logs whether there are issues with E-Mail")
         LOG.debug("Added mail error count metric")
         metric.add_metric([], get_mail_fetcher_errors())
         return metric
 
     def _metric_config_valid(self) -> GaugeMetricFamily:
-        metric = GaugeMetricFamily("otrs_config_valid", "Is the OTRS Config valid or not?")
+        metric = GaugeMetricFamily("otrs_config_valid",
+                                   "Return 1 if OTRS config is valid and 0 if not")
         LOG.debug("Added OTRS valid config metric")
         metric.add_metric([], is_config_valid())
         return metric
 
     def _metric_daemon_summary(self) -> GaugeMetricFamily:
-        metric = GaugeMetricFamily("otrs_daemon_summary", "The OTRS Daemon Success Rate")
+        metric = GaugeMetricFamily("otrs_daemon_summary",
+                                   "The OTRS Daemon Success Rate - How many tasks monitored in the Daemon command "
+                                   "fail.")
         LOG.debug("Added OTRS daemon success rate metric")
         metric.add_metric([], get_job_success_rate())
         return metric
 
     def _metric_failing_crons(self) -> InfoMetricFamily:
         metric = InfoMetricFamily("otrs_daemon_cron_jobs",
-                                  "This tells us about all failing OTRS Daemon Cron Jobs")
+                                  "List all failing OTRS Daemon Cron Jobs")
         LOG.debug("Added failing cron job metric")
         metric.add_metric([], get_failing_crons())
         return metric
 
     def _metric_db_status_ok(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_db_status_ok",
-                                   "This tells us about all failing OTRS Daemon Cron Jobs")
+                                   "Return 1 if connection successful and 0 if not")
         LOG.debug("Added Db status ok metric")
         metric.add_metric([], get_db_status())
         return metric
 
     def _metric_db_additional_stats(self) -> InfoMetricFamily:
         metric = InfoMetricFamily("otrs_daemon_additional_db_stats",
-                                  "This tells us about all additional DB stats gathered by OTRS")
+                                  "Returns all additional DB Stats exported by OTRS")
         LOG.debug("Added additional db stats metric")
         metric.add_metric([], get_additional_db_stats())
         return metric
 
     def _metric_elastic_status_ok(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_elastic_status_ok",
-                                   "This tells us about all failing OTRS Daemon Cron Jobs")
+                                   "Return 1 if elastic status is ok, 0 if not")
         LOG.debug("Added elastic status ok metric")
         metric.add_metric([], get_elastic_status())
         return metric
 
     def _metric_elastic_cluster_status(self) -> StateSetMetricFamily:
         metric = StateSetMetricFamily("otrs_elastic_cluster_status",
-                                      "This tells us about all ElasticSearch Cluster Health")
+                                      "Return the cluster health with the traffic light schema used by ElasticSearch")
         LOG.debug("Added elastic cluster status metric")
         metric.add_metric([], get_elastic_overall_cluster_status())
         return metric
 
     def _metric_elastic_overall_node_status(self) -> StateSetMetricFamily:
         metric = StateSetMetricFamily("otrs_elastic_node_status",
-                                      "This tells us about the overall ElasticSearch Node Health")
+                                      "Return the overall node health with the traffic light schema used by "
+                                      "ElasticSearch")
         LOG.debug("Added elastic node status metric")
         metric.add_metric([], get_elastic_overall_nodes_status())
         return metric
 
     def _metric_elastic_all_nodes_status(self) -> InfoMetricFamily:
         metric = InfoMetricFamily("otrs_elastic_failed_nodes",
-                                  "This tells us about all ElasticSearch nodes")
+                                  "Return the granular node health with the traffic light schema used by ElasticSearch")
         LOG.debug("Added elastic node status metric")
         metric.add_metric([], get_elastic_all_nodes_states())
         return metric
 
     def _metric_elastic_index_states(self) -> InfoMetricFamily:
         metric = InfoMetricFamily("otrs_elastic_index_states",
-                                  "This tells us about all ElasticSearch nodes")
+                                  "Returns available vs already indexed documents for each index")
         LOG.debug("Added elastic index status metric")
         metric.add_metric([], get_elastic_index_states())
         return metric
 
     def _metric_mail_queue_empty(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_elastic_status_ok",
-                                   "This tells us about all failing OTRS Daemon Cron Jobs")
+                                   "Return 1 if mail queue empty, 0 if not")
         LOG.debug("Added mail queue empty metric")
         metric.add_metric([], get_mail_queue_empty())
         return metric
