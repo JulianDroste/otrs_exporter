@@ -33,21 +33,21 @@ def auto_cursor(func: Callable) -> Callable:
     """
     def wrapper(*args, **kwargs):
         global db
-        if db.closed:
+        if not db.is_connected():
             print("Database is not connected! Attempting reconnect...")
             db = _connect_db()
 
         if "cursor" in kwargs.keys():
             result = func(*args, **kwargs)
         else:
-            with db.cursor() as c:
-                result = func(*args, **kwargs, cursor=c)
-                try:
-                    # Fetch all remaining results, otherwise an error is raised by MySQL, in case the user didn't fetch
-                    c.fetchall()
-                except mysql.connector.ProgrammingError:
-                    # If no records were present, this exception is raised. Everything is fine in this case.
-                    pass
+            c = db.cursor(prepared=True)
+            result = func(*args, **kwargs, cursor=c)
+            try:
+                # Fetch all remaining results, otherwise an error is raised by MySQL, in case the user didn't fetch
+                c.fetchall()
+            except mysql.connector.ProgrammingError:
+                # If no records were present, this exception is raised. Everything is fine in this case.
+                pass
         db.commit()
         return result
 
@@ -66,9 +66,6 @@ def _action_where(action: str, table_name: str, **kwargs) -> List[Dict[str, Any]
         :return: A `list` containing `dict`s, each mapping column names to values of a data row. The list might be empty.
         """
     cursor = kwargs.pop("cursor")
-    if not cursor or not isinstance(cursor, MySQLCursor):
-        LOG.error("No cursor provided!")
-        raise ValueError("No valid PostgresCursor provided by @auto_cursor or user!")
     if action is None or action.upper() not in ["SELECT", "DELETE"]:
         raise ValueError(f"Invalid action requested! Must be SELECT or DELETE! Got {action}.")
     sql_where_clauses = [f'{k} = %s' for k in kwargs.keys()]
