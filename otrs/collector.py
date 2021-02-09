@@ -120,6 +120,12 @@ class OtrsConnector:
 
 
 def get_mail_queue_empty() -> int:
+    """
+    Determine if mail queue is empty, for mail issue diagnosis.
+
+    :rtype: int
+    :return: Empty (1), Non-Empty (0)
+    """
     otrs_cli_out: str = subprocess.run(["/opt/otrs/bin/otrs.Console.pl", "Maint::Email::MailQueue", "--list"],
                                        stdout=subprocess.PIPE).stdout.decode("utf-8")
     if "Mail queue is empty." in otrs_cli_out:
@@ -128,7 +134,14 @@ def get_mail_queue_empty() -> int:
         return 0
 
 
-def get_elastic_index_states() -> Dict:
+def get_elastic_index_states() -> Dict[str:str]:
+    """
+    Parse the document indexing status for all OTRS Elastic Search Indices.
+
+    :rtype: dict
+    :return: Indices _avail and _indexed document count per index
+    """
+    # TODO str:int would make more sense here
     otrs_cli_out: str = subprocess.run(["/opt/otrs/bin/otrs.Console.pl",
                                         "Maint::DocumentSearch::IndexManagement", "--index-status", "all"],
                                        stdout=subprocess.PIPE).stdout.decode("utf-8")
@@ -141,7 +154,13 @@ def get_elastic_index_states() -> Dict:
     return indices_dict
 
 
-def get_elastic_all_nodes_states() -> Dict:
+def get_elastic_all_nodes_states() -> Dict[str:str]:
+    """
+    List all individual node states in the Elastic Search Traffic Light Pattern.
+
+    :rtype: dict
+    :return: Mapping from node name to state
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::DocumentSearch::Check")
     nodes: List[str] = re.compile(r"^\s+\|\s+Node\s+\|\s+(\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     states: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+\W\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
@@ -149,7 +168,15 @@ def get_elastic_all_nodes_states() -> Dict:
     return node_to_state
 
 
-def get_elastic_overall_nodes_status():
+def get_elastic_overall_nodes_status() -> dict:
+    """
+    Determine a general status for the nodes from looking at all nodes individually. "On-line" is good / expected,
+    everything else might lead to errors.
+
+    :rtype: dict
+    :return: Mapping from Red, Yellow, Green to "Truthyness"
+    """
+    # TODO figure out why this yields: otrs_elastic_node_status{otrs_elastic_node_status="Green"} 1.0
     otrs_cli_out: str = call_otrs_cli("Maint::DocumentSearch::Check")
     states: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+\W\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     unique_status = set(states)
@@ -162,7 +189,13 @@ def get_elastic_overall_nodes_status():
         return {"Green": True}
 
 
-def get_elastic_overall_cluster_status():
+def get_elastic_overall_cluster_status() -> dict:
+    """
+    Retrieve the overall Elastic Cluster Status from OTRS.
+
+    :rtype: dict
+    :return: Mapping from Red, Yellow, Green to "Truthyness"
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::DocumentSearch::Check")
     matching: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     state_to_bool = {
@@ -176,7 +209,13 @@ def get_elastic_overall_cluster_status():
     return result
 
 
-def get_elastic_status():
+def get_elastic_status() -> int:
+    """
+    Analogous to the get_db_status() method. Retrieve if connection to ElasticSearch Cluster is up or not.
+
+    :rtype: int
+    :return: Connection Status (True/False)
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::DocumentSearch::Check")
     if "Connection successful." in otrs_cli_out:
         return 1
@@ -184,7 +223,13 @@ def get_elastic_status():
         return 0
 
 
-def get_additional_db_stats():
+def get_additional_db_stats() -> Dict[str:str]:
+    """
+    The OTRS DB Check retrieves additional stats (takes a long time) which we print here.
+
+    :rtype: Dict[str:str]
+    :return: Mapping of Checks (i.e. their names) to their results
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::Database::Check")
     matching: List[str] = re.compile(r"^(\w[\w\s]+)\: (.*)$", re.MULTILINE).findall(otrs_cli_out)
     return {match[0].lower().replace(" ", "_"):
@@ -192,7 +237,13 @@ def get_additional_db_stats():
             for match in matching}
 
 
-def get_db_status():
+def get_db_status() -> int:
+    """
+    Determine via OTRS CLI if the database is connected properly or not.
+
+    :rtype: int
+    :return: Connection okay or not okay
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::Database::Check")
     if "Connection successful." in otrs_cli_out:
         return 1
@@ -200,21 +251,40 @@ def get_db_status():
         return 0
 
 
-def get_failing_crons():
+def get_failing_crons() -> Dict[str:str]:
+    """
+    Get the names of all cron jobs that are marked with "Fail" and return those in a dictionary.
+
+    :rtype: Dict[str:str]
+    :return: Mapping of cron job names to the word "failed"
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::Daemon::Summary")
     matching: List[str] = re.compile(r"^\s*\|\s*([A-Za-z0-9]+)\s*\|\s*[\s\d:\-]*\|\s*Fail", re.MULTILINE).findall(
         otrs_cli_out)
     return {match: "failed" for match in matching}
 
 
-def get_job_success_rate():
+def get_job_success_rate() -> float:
+    """
+    Return the OTRS Daemon Total Job Success Rate, i.e. count all occurrences of the word "Fail" in the output and
+    divide by the total amount of jobs (which are determined by adding the jobs marked as "Success".
+
+    :rtype: float
+    :return: OTRS Daemon Job Success Rate
+    """
     otrs_cli_out: str = call_otrs_cli("Maint::Daemon::Summary")
     daemon_success = otrs_cli_out.count("Success")
     daemon_total = daemon_success + otrs_cli_out.count("Fail")
     return daemon_success / daemon_total
 
 
-def is_config_valid():
+def is_config_valid() -> int:
+    """
+    Parse the output of the Config Check and determine if said config is valid or not.
+
+    :rtype: int
+    :return: valid / not valid config
+    """
     otrs_cli_out: str = call_otrs_cli("Admin::Config::ListInvalid")
     if "All settings are valid." in otrs_cli_out:
         return 1
@@ -222,7 +292,13 @@ def is_config_valid():
         return 0
 
 
-def get_mail_fetcher_errors():
+def get_mail_fetcher_errors() -> int:
+    """
+    Determine on some manually gathered strings issues within the Daemon logs regarding mail processing.
+
+    :rtype: int
+    :return: Occurrence of the mail errors in the current open file
+    """
     error_count = 0
     for line in log:
         if any(s in line for s in ["Got no email",
