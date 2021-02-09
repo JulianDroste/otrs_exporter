@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import List, Dict
 
 from prometheus_client.core import GaugeMetricFamily, InfoMetricFamily, StateSetMetricFamily
@@ -18,6 +19,13 @@ def call_otrs_cli(cli_endpoint: str) -> str:
 
 class OtrsConnector:
 
+    _last_db_check_performed: datetime = datetime.min
+    _last_db_ok_check_performed: datetime = datetime.min
+    _last_mail_error_occurred: datetime = datetime.min
+    _db_stats_cache: dict = {}
+    _db_ok_cache: int = 0
+    _mail_fetcher_errors: int = 0
+
     def collect(self):
         yield self._metric_mail_error_count()
         yield self._metric_mail_queue_empty()
@@ -36,7 +44,15 @@ class OtrsConnector:
         metric = GaugeMetricFamily("otrs_mail_error",
                                    "Determine via OTRS logs whether there are issues with E-Mail")
         LOG.debug("Added mail error count metric")
-        metric.add_metric([], get_mail_fetcher_errors())
+        delta = datetime.now() - self._last_mail_error_occurred
+        new_errors = get_mail_fetcher_errors()
+        if delta.seconds < 900:
+            self._mail_fetcher_errors = self._mail_fetcher_errors + new_errors
+        else:
+            self._mail_fetcher_errors = get_mail_fetcher_errors()
+        if new_errors > 0:
+            self._last_mail_error_occurred = datetime.now()
+        metric.add_metric([], self._mail_fetcher_errors)
         return metric
 
     def _metric_config_valid(self) -> GaugeMetricFamily:
@@ -65,14 +81,22 @@ class OtrsConnector:
         metric = GaugeMetricFamily("otrs_db_status_ok",
                                    "Return 1 if connection successful and 0 if not")
         LOG.debug("Added Db status ok metric")
-        metric.add_metric([], get_db_status())
+        delta = datetime.now() - self._last_db_ok_check_performed
+        if delta.seconds > 900:
+            self._db_ok_cache = get_db_status()
+            self._last_db_ok_check_performed = datetime.now()
+        metric.add_metric([], self._db_ok_cache)
         return metric
 
     def _metric_db_additional_stats(self) -> InfoMetricFamily:
         metric = InfoMetricFamily("otrs_daemon_additional_db_stats",
                                   "Returns all additional DB Stats exported by OTRS")
         LOG.debug("Added additional db stats metric")
-        metric.add_metric([], get_additional_db_stats())
+        delta = datetime.now() - self._last_db_check_performed
+        if delta.seconds > 900:
+            self._db_stats_cache = get_additional_db_stats()
+            self._last_db_check_performed = datetime.now()
+        metric.add_metric([], self._db_stats_cache)
         return metric
 
     def _metric_elastic_status_ok(self) -> GaugeMetricFamily:
@@ -299,7 +323,7 @@ def get_mail_fetcher_errors() -> int:
     :rtype: int
     :return: Occurrence of the mail errors in the current open file
     """
-    error_count = 0
+
     for line in log:
         if any(s in line for s in ["Got no email",
                                    "S/MIME",
