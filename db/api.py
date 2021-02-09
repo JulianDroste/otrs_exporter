@@ -120,8 +120,5 @@ def delete_where(table_name: str, **kwargs) -> List[Dict[str, Any]]:
 @auto_cursor
 def get_db_columns(table_name: str, **kwargs):
     cursor = kwargs.pop("cursor")
-    if not cursor or not isinstance(cursor, MySQLCursor):
-        LOG.error("No cursor provided!")
-        raise ValueError("No valid MySQLCursor provided by @auto_cursor or user!")
     cursor.execute(f"SELECT column_name FROM INFORMATION_SCHEMA. COLUMNS WHERE TABLE_NAME = '{table_name}';")
     return [column_tuple[0] for column_tuple in cursor.fetchall()]
