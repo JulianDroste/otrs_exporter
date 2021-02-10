@@ -18,7 +18,6 @@ def call_otrs_cli(cli_endpoint: str) -> str:
 
 
 class OtrsConnector:
-
     _last_db_check_performed: datetime = datetime.min
     _last_db_ok_check_performed: datetime = datetime.min
     _last_mail_error_occurred: datetime = datetime.min
@@ -49,7 +48,7 @@ class OtrsConnector:
         if delta.seconds < 900:
             self._mail_fetcher_errors = self._mail_fetcher_errors + new_errors
         else:
-            self._mail_fetcher_errors = get_mail_fetcher_errors()
+            self._mail_fetcher_errors = new_errors
         if new_errors > 0:
             self._last_mail_error_occurred = datetime.now()
         metric.add_metric([], self._mail_fetcher_errors)
@@ -158,7 +157,7 @@ def get_mail_queue_empty() -> int:
         return 0
 
 
-def get_elastic_index_states() -> Dict[str:str]:
+def get_elastic_index_states() -> Dict[str, str]:
     """
     Parse the document indexing status for all OTRS Elastic Search Indices.
 
@@ -178,7 +177,7 @@ def get_elastic_index_states() -> Dict[str:str]:
     return indices_dict
 
 
-def get_elastic_all_nodes_states() -> Dict[str:str]:
+def get_elastic_all_nodes_states() -> Dict[str, str]:
     """
     List all individual node states in the Elastic Search Traffic Light Pattern.
 
@@ -247,7 +246,7 @@ def get_elastic_status() -> int:
         return 0
 
 
-def get_additional_db_stats() -> Dict[str:str]:
+def get_additional_db_stats() -> Dict[str, str]:
     """
     The OTRS DB Check retrieves additional stats (takes a long time) which we print here.
 
@@ -257,7 +256,7 @@ def get_additional_db_stats() -> Dict[str:str]:
     otrs_cli_out: str = call_otrs_cli("Maint::Database::Check")
     matching: List[str] = re.compile(r"^(\w[\w\s]+)\: (.*)$", re.MULTILINE).findall(otrs_cli_out)
     return {match[0].lower().replace(" ", "_"):
-            match[1].strip(" ").strip("(").strip(")").replace(" (", " - ")
+                match[1].strip(" ").strip("(").strip(")").replace(" (", " - ")
             for match in matching}
 
 
@@ -275,7 +274,7 @@ def get_db_status() -> int:
         return 0
 
 
-def get_failing_crons() -> Dict[str:str]:
+def get_failing_crons() -> Dict[str, str]:
     """
     Get the names of all cron jobs that are marked with "Fail" and return those in a dictionary.
 
@@ -323,7 +322,7 @@ def get_mail_fetcher_errors() -> int:
     :rtype: int
     :return: Occurrence of the mail errors in the current open file
     """
-
+    error_count = 0
     for line in log:
         if any(s in line for s in ["Got no email",
                                    "S/MIME",
