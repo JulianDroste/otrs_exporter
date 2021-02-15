@@ -76,6 +76,13 @@ class OtrsConnector:
         metric.add_metric([], get_failing_crons())
         return metric
 
+    def _metric_successful_crons(self) -> InfoMetricFamily:
+        metric = InfoMetricFamily("otrs_daemon_cron_jobs",
+                                  "List all failing OTRS Daemon Cron Jobs")
+        LOG.debug("Added failing cron job metric")
+        metric.add_metric([], get_successful_crons())
+        return metric
+
     def _metric_db_status_ok(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_db_status_ok",
                                    "Return 1 if connection successful and 0 if not")
@@ -130,10 +137,10 @@ class OtrsConnector:
         metric.add_metric([], get_elastic_overall_cluster_status())
         return metric
 
-    def _metric_elastic_overall_node_status(self) -> StateSetMetricFamily:
-        metric = StateSetMetricFamily("otrs_elastic_node_status",
-                                      "Return the overall node health with the traffic light schema used by "
-                                      "ElasticSearch")
+    def _metric_elastic_overall_node_status(self) -> GaugeMetricFamily:
+        metric = GaugeMetricFamily("otrs_elastic_node_status",
+                                   "Return the overall node health with the traffic light schema used by "
+                                   "ElasticSearch")
         LOG.debug("Added elastic node status metric")
         metric.add_metric([], get_elastic_overall_nodes_status())
         return metric
@@ -228,7 +235,7 @@ def get_elastic_all_nodes_states() -> Dict[str, str]:
     return node_to_state
 
 
-def get_elastic_overall_nodes_status() -> dict:
+def get_elastic_overall_nodes_status() -> float:
     """
     Determine a general status for the nodes from looking at all nodes individually. "On-line" is good / expected,
     everything else might lead to errors.
@@ -241,12 +248,12 @@ def get_elastic_overall_nodes_status() -> dict:
     states: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+\W\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     unique_status = set(states)
     if "On-line" not in unique_status:
-        return {"Red": None}
+        return 0
     # If one node goes bad, the overall node state should turn bad
     elif len(unique_status) > 1:
-        return {"Yellow": False}
+        return 0.5
     else:
-        return {"Green": True}
+        return 1
 
 
 def get_elastic_overall_cluster_status() -> dict:
@@ -259,9 +266,9 @@ def get_elastic_overall_cluster_status() -> dict:
     otrs_cli_out: str = call_otrs_cli("Maint::DocumentSearch::Check")
     matching: List[str] = re.compile(r"^\s+\|\s+Status\s+\|\s+(\w+)\s+\|$", re.MULTILINE).findall(otrs_cli_out)
     state_to_bool = {
-        "Red": None,
-        "Yellow": False,
-        "Green": True
+        "Red": 0,
+        "Yellow": 0.5,
+        "Green": 1
     }
     result = {}
     for match in matching:
@@ -311,17 +318,30 @@ def get_db_status() -> int:
         return 0
 
 
+def get_successful_crons() -> Dict[str, str]:
+    """
+    Get the names of all cron jobs that are marked with "Success" and return those in a dictionary.
+
+    :rtype: Dict[str:str]
+    :return: Mapping of cron job names to 1
+    """
+    otrs_cli_out: str = call_otrs_cli("Maint::Daemon::Summary")
+    matching: List[str] = re.compile(r"^\s*\|\s*([A-Za-z0-9]+)\s*\|\s*[\s\d:\-]*\|\s*Success", re.MULTILINE).findall(
+        otrs_cli_out)
+    return {match: 1 for match in matching}
+
+
 def get_failing_crons() -> Dict[str, str]:
     """
     Get the names of all cron jobs that are marked with "Fail" and return those in a dictionary.
 
     :rtype: Dict[str:str]
-    :return: Mapping of cron job names to the word "failed"
+    :return: Mapping of cron job names to 0
     """
     otrs_cli_out: str = call_otrs_cli("Maint::Daemon::Summary")
     matching: List[str] = re.compile(r"^\s*\|\s*([A-Za-z0-9]+)\s*\|\s*[\s\d:\-]*\|\s*Fail", re.MULTILINE).findall(
         otrs_cli_out)
-    return {match: "failed" for match in matching}
+    return {match: 0 for match in matching}
 
 
 def get_job_success_rate() -> float:
