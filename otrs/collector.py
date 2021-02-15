@@ -395,9 +395,9 @@ def prepare_additional_stats_dict(stats_dict: Dict) -> Dict:
             del value[-2]
             try:
                 if value[1] == "MB":
-                    value[0] = float(value[0]) * 1024
-                if value[1] == "GB":
                     value[0] = float(value[0]) * 1024 * 1024
+                if value[1] == "GB":
+                    value[0] = float(value[0]) * 1024 * 1024 * 1024
                 del value[-2]
             except ValueError:
                 pass
