@@ -328,7 +328,7 @@ def get_successful_crons() -> Dict[str, str]:
     otrs_cli_out: str = call_otrs_cli("Maint::Daemon::Summary")
     matching: List[str] = re.compile(r"^\s*\|\s*([A-Za-z0-9]+)\s*\|\s*[\s\d:\-]*\|\s*Success", re.MULTILINE).findall(
         otrs_cli_out)
-    return {match: 1 for match in matching}
+    return {match: "1" for match in matching}
 
 
 def get_failing_crons() -> Dict[str, str]:
@@ -341,7 +341,7 @@ def get_failing_crons() -> Dict[str, str]:
     otrs_cli_out: str = call_otrs_cli("Maint::Daemon::Summary")
     matching: List[str] = re.compile(r"^\s*\|\s*([A-Za-z0-9]+)\s*\|\s*[\s\d:\-]*\|\s*Fail", re.MULTILINE).findall(
         otrs_cli_out)
-    return {match: 0 for match in matching}
+    return {match: "0" for match in matching}
 
 
 def get_job_success_rate() -> float:
