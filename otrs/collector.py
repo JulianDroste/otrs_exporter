@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Tuple, Any, Optional
 
 from prometheus_client.core import GaugeMetricFamily, InfoMetricFamily, StateSetMetricFamily
 from pygtail import Pygtail
@@ -31,7 +31,7 @@ class OtrsConnector:
         yield self._metric_failing_crons()
         yield self._metric_config_valid()
         yield self._metric_db_status_ok()
-        yield self._metric_db_additional_stats()
+        yield from self._metric_db_additional_stats()
         yield self._metric_daemon_summary()
         yield self._metric_elastic_status_ok()
         yield self._metric_elastic_cluster_status()
@@ -87,16 +87,34 @@ class OtrsConnector:
         metric.add_metric([], self._db_ok_cache)
         return metric
 
-    def _metric_db_additional_stats(self) -> InfoMetricFamily:
-        metric = InfoMetricFamily("otrs_daemon_additional_db_stats",
-                                  "Returns all additional DB Stats exported by OTRS")
+    def _metric_db_additional_stats(self):
         LOG.debug("Added additional db stats metric")
         delta = datetime.now() - self._last_db_check_performed
         if delta.seconds > 900:
             self._db_stats_cache = get_additional_db_stats()
             self._last_db_check_performed = datetime.now()
-        metric.add_metric([], self._db_stats_cache)
-        return metric
+        stats_dict: Dict[str, List] = {"otrs_additional_db_stats_" + str(k): v.split(" ")
+                                       for k, v in self._db_stats_cache.items()}
+        metrics = []
+        stats_dict = prepare_additional_stats_dict(stats_dict)
+        for key, value in stats_dict.items():
+            metric = GaugeMetricFamily(key, "")
+            if type(value[0]) == str and len(value) > 1:
+                metric = InfoMetricFamily(key, "")
+            if value[-1] not in ["Info", "OK"]:
+                metric.add_metric([], {"NOK": 0})
+            elif "Info" in value[-1]:
+                metric.add_metric([], value[0])
+            elif "OK" in value[-1]:
+                if type(value[0]) == str:
+                    if type(metric) == InfoMetricFamily:
+                        metric.add_metric([], {"OK": value[0]})
+                    elif type(metric) == GaugeMetricFamily:
+                        metric.add_metric([], 1)
+                else:
+                    metric.add_metric([], value[0])
+            metrics.append(metric)
+        return metrics
 
     def _metric_elastic_status_ok(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_elastic_status_ok",
@@ -256,7 +274,7 @@ def get_additional_db_stats() -> Dict[str, str]:
     otrs_cli_out: str = call_otrs_cli("Maint::Database::Check")
     matching: List[str] = re.compile(r"^(\w[\w\s]+)\: (.*)$", re.MULTILINE).findall(otrs_cli_out)
     return {match[0].lower().replace(" ", "_"):
-                match[1].strip(" ").strip("(").strip(")").replace(" (", " - ")
+            match[1].strip(" ").strip("(").strip(")").replace(" (", " - ")
             for match in matching}
 
 
@@ -330,3 +348,22 @@ def get_mail_fetcher_errors() -> int:
                                    "PostMaster"]):
             error_count += 1
     return error_count
+
+
+def prepare_additional_stats_dict(stats_dict: Dict) -> Dict:
+    for key, value in stats_dict.items():
+        if len(value) > 1:
+            del value[-2]
+            try:
+                if value[1] == "MB":
+                    value[0] = float(value[0]) * 1024
+                if value[1] == "GB":
+                    value[0] = float(value[0]) * 1024 * 1024
+                del value[-2]
+            except ValueError:
+                pass
+            if len(value) == 3:
+                value[0] = str(value[0] + " " + value[1])
+                value[1] = value[2]
+                del value[-2]
+    return stats_dict
