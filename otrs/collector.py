@@ -161,11 +161,11 @@ class OtrsConnector:
             else:
                 values.append(float(x) / float(y))
         percentages = dict(zip(keys, values))
-        for key, value in indices:
+        for key, value in indices.items():
             metric = GaugeMetricFamily("otrs_elastic_index_states_" + key, "")
             metric.add_metric([], float(value))
             metrics.append(metric)
-        for key, value in percentages:
+        for key, value in percentages.items():
             metric = GaugeMetricFamily("otrs_elastic_index_" + key, "")
             metric.add_metric([], float(value))
             metrics.append(metric)
