@@ -37,7 +37,7 @@ class OtrsConnector:
         yield self._metric_elastic_cluster_status()
         yield self._metric_elastic_all_nodes_status()
         yield self._metric_elastic_overall_node_status()
-        yield self._metric_elastic_index_states()
+        yield from self._metric_elastic_index_states()
 
     def _metric_mail_error_count(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_mail_error",
@@ -145,12 +145,31 @@ class OtrsConnector:
         metric.add_metric([], get_elastic_all_nodes_states())
         return metric
 
-    def _metric_elastic_index_states(self) -> InfoMetricFamily:
-        metric = InfoMetricFamily("otrs_elastic_index_states",
-                                  "Returns available vs already indexed documents for each index")
+    def _metric_elastic_index_states(self):
         LOG.debug("Added elastic index status metric")
-        metric.add_metric([], get_elastic_index_states())
-        return metric
+        metrics = []
+        indices = get_elastic_index_states()
+        avail = {key: val for key, val in indices.items() if "avail" in key}
+        indexed = {key: val for key, val in indices.items() if "indexed" in key}
+        keys = [entry.rsplit("_", 1)[0] + "_percentage" for entry in indices.keys()]
+        values_avail = [float(val) for val in avail.values()]
+        values_indexed = [float(val) for val in indexed.values()]
+        values = []
+        for x, y in zip(values_indexed, values_avail):
+            if y == 0:
+                values.append(float(1.0))
+            else:
+                values.append(float(x) / float(y))
+        percentages = dict(zip(keys, values))
+        for key, value in indices:
+            metric = GaugeMetricFamily("otrs_elastic_index_states_" + key, "")
+            metric.add_metric([], float(value))
+            metrics.append(metric)
+        for key, value in percentages:
+            metric = GaugeMetricFamily("otrs_elastic_index_" + key, "")
+            metric.add_metric([], float(value))
+            metrics.append(metric)
+        return metrics
 
     def _metric_mail_queue_empty(self) -> GaugeMetricFamily:
         metric = GaugeMetricFamily("otrs_elastic_status_ok",
