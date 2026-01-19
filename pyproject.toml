@@ -1,6 +1,6 @@
 [project]
 name = "otrs-exporter"
-version = "0.2.1"
+version = "0.2.2"
 description = "This OTRS prometheus exporter aims to provide application performance metrics and (to some degree) usage statistics"
 readme = "README.md"
 requires-python = ">=3.12"
